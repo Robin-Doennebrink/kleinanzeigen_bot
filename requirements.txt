@@ -3,3 +3,6 @@ bs4==0.0.2
 python-telegram-bot[job-queue]==22.5
 beautifulsoup4==4.14.2
 python-dotenv==1.2.1
+pre-commit==4.3.0
+black==25.9.0
+isort==7.0.0
