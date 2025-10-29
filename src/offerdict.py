@@ -5,6 +5,7 @@ Author: Robin
 Created: 29.10.2025
 Copyright: © 2025 Robin Dönnebrink
 """
+
 from typing import TypedDict
 
 
