@@ -163,7 +163,7 @@ app.job_queue.run_repeating(check_for_new_offers, interval=5, first=0)
 
 # Start bot
 try:
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 finally:
     # Remove the lock file when the bot stops
     logger.debug("Bot terminated. Removing lock file")
