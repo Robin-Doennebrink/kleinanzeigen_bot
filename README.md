@@ -13,5 +13,5 @@ SEARCH_QUERIES=["https://www.kleinanzeigen.de/s-44139/zentrierst%C3%A4nder/k0l11
 ```
 
 ## Start bot
-To start the bot, navtiagte via `cd src` and  run bot via `nohup python kleinanzeigen_bot.py &`.
+To start the bot, navtiagte via `cd src` and  run bot via ` nohup python kleinanzeigen_bot.py > bot.log 2>&1 &`.
 This will load the environment variables and start the bot in the background.
