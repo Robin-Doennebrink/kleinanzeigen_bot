@@ -14,6 +14,16 @@ from telegram.ext import Application, CallbackContext
 
 from offerdict import OfferDict
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("bot.log", encoding="utf-8"),
+    ],
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,42 +80,47 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
     """
     offers: dict[str, list[OfferDict]] = defaultdict(list)
     for query in SEARCH_QUERIES:
+        logger.info(f"Query: {query=}")
         response = requests.get(query)
         soup = BeautifulSoup(response.text, "html.parser")
+        for item in soup.select("article[data-adid][data-href]"):
+            logger.info(f"Found an item (y)")
 
-        for item in soup.select("article.aditem"):
-            # Check if the <h2> element exists
-            title_element = item.select_one("h2")
+            # Title
+            title_element = item.select_one("h3 a")
             if title_element is None:
                 logger.info("No title found, skipping element.")
                 continue
-
-            title = title_element.text.strip()
-            link_element = item.select_one("a")
-            if link_element is None or "href" not in link_element.attrs:
+            logger.info(f"Found {title_element=}")
+            title = title_element.get_text(strip=True)
+            logger.info(f"Found {title=}")
+            # Link
+            href = item.get("data-href")
+            if not href:
                 logger.info("No link found, skipping element.")
                 continue
-            link = "https://www.kleinanzeigen.de" + link_element["href"]
+            logger.info(f"Found {href=}")
+            link = "https://www.kleinanzeigen.de" + href
 
-            # Extract and clean the distance text
-            distance_element = item.select_one(".aditem-main--top--left")
-            if distance_element:
-                distance = distance_element.text.strip()
+            # Location / distance
+            location_element = item.select_one('svg[data-title="locationOutline"]')
+            if location_element:
+                location_container = location_element.parent
+                distance = location_container.get_text(" ", strip=True)
                 distance = re.sub(r"\s+", " ", distance)
             else:
                 distance = "Distance not available"
 
-            price = item.select_one(".aditem-main--middle--price-shipping--price")
-            if price:
-                price = price.text.strip()
+            # Price
+            price_element = item.select_one("p.text-title3.font-strong.text-secondary")
+            if price_element:
+                price = price_element.get_text(strip=True)
             else:
                 price = "Price not available"
 
-            # Check if an image is available
-            img_tag = item.select_one("img")
-            img_url: str | None = (
-                img_tag["src"] if img_tag and "src" in img_tag.attrs else None
-            )
+            # Image
+            img_tag = item.select_one("[data-image-container] img")
+            img_url: str | None = img_tag.get("src") if img_tag else None
 
             offers[query].append(
                 {
@@ -116,6 +131,7 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
                     "price": price,
                 }
             )
+    logger.info(f"Found in total {len(offers)} offers")
     return offers
 
 
@@ -148,6 +164,7 @@ async def check_for_new_offers(context: CallbackContext) -> None:
     Returns: None
 
     """
+    logger.info("Start checking for new offers")
     # Check for new offers
     for query, offers in get_new_offers().items():
         for offer in offers:
@@ -156,6 +173,9 @@ async def check_for_new_offers(context: CallbackContext) -> None:
                 sent_offers.append(offer)
 
 
+logger.info("Bot started with following queries:")
+for query in SEARCH_QUERIES:
+    logger.info(query)
 # Create the Application object
 app = Application.builder().token(TELEGRAM_TOKEN).build()
 # Add a job that regularly checks for new offers
