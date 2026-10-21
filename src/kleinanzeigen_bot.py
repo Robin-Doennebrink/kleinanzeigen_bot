@@ -84,16 +84,12 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
         response = requests.get(query)
         soup = BeautifulSoup(response.text, "html.parser")
         for item in soup.select("article[data-adid][data-href]"):
-            logger.info(f"Found an item (y)")
-
             # Title
             title_element = item.select_one("h3 a")
             if title_element is None:
                 logger.info("No title found, skipping element.")
                 continue
-            logger.info(f"Found {title_element=}")
             title = title_element.get_text(strip=True)
-            logger.info(f"Found {title=}")
             # Link
             href = item.get("data-href")
             if not href:
