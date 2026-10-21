@@ -95,7 +95,6 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
             if not href:
                 logger.info("No link found, skipping element.")
                 continue
-            logger.info(f"Found {href=}")
             link = "https://www.kleinanzeigen.de" + href
 
             # Location / distance
