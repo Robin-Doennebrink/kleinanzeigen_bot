@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -5,6 +6,7 @@ import platform
 import re
 import sys
 from collections import defaultdict
+from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -19,7 +21,6 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     handlers=[
-        logging.StreamHandler(),
         logging.FileHandler("bot.log", encoding="utf-8"),
     ],
 )
@@ -42,9 +43,7 @@ except json.JSONDecodeError:
     sys.exit(1)
 
 logger.info("(Try to) start kleinanzeigen bot")
-logger.info(
-    f"Loaded environment variables: TELEGRAM_TOKEN={TELEGRAM_TOKEN}, CHAT_ID={CHAT_ID}, SEARCH_QUERIES={SEARCH_QUERIES}"
-)
+logger.info("Loaded %d search queries", len(SEARCH_QUERIES))
 
 
 # Define lock file path depending on the operating system
@@ -81,7 +80,18 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
     offers: dict[str, list[OfferDict]] = defaultdict(list)
     for query in SEARCH_QUERIES:
         logger.info(f"Query: {query=}")
-        response = requests.get(query)
+        try:
+            response = requests.get(query, timeout=(5, 15))
+            logger.info(
+                "Request completed: status=%s, url=%s",
+                response.status_code,
+                query,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException:
+            logger.exception("Failed to fetch offers from %s", query)
+            continue
+
         soup = BeautifulSoup(response.text, "html.parser")
         for item in soup.select("article[data-adid][data-href]"):
             # Title
@@ -95,7 +105,7 @@ def get_new_offers() -> dict[str, list[OfferDict]]:
             if not href:
                 logger.info("No link found, skipping element.")
                 continue
-            link = "https://www.kleinanzeigen.de" + href
+            link = urljoin("https://www.kleinanzeigen.de", href)
 
             # Location / distance
             location_element = item.select_one('svg[data-title="locationOutline"]')
@@ -151,21 +161,21 @@ async def send_offer(offer: OfferDict) -> None:
 
 
 async def check_for_new_offers(context: CallbackContext) -> None:
-    """Checks for Kleinanzeigen offers and sends them to the chat if they haven't been sent yet.
-
-    Args:
-        context: Application callback context
-
-    Returns: None
-
-    """
     logger.info("Start checking for new offers")
-    # Check for new offers
-    for query, offers in get_new_offers().items():
-        for offer in offers:
-            if offer not in sent_offers:
-                await send_offer(offer)
-                sent_offers.append(offer)
+
+    try:
+        new_offers = await asyncio.to_thread(get_new_offers)
+
+        for query, offers in new_offers.items():
+            for offer in offers:
+                if offer not in sent_offers:
+                    await send_offer(offer)
+                    sent_offers.append(offer)
+
+    except Exception:
+        logger.exception("Unexpected error while checking for new offers")
+
+    logger.info("Finished checking for new offers")
 
 
 logger.info("Bot started with following queries:")
